@@ -4,23 +4,40 @@ class Deteriorator extends SqRootScript
 	static DETERIORATE_TIMER = 10; //How often to update deterioration, NOT the rate, just how often the script updates item status
 	static DETERIORATE_RATE = 600; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
 
+	function GetItemTime(item)
+	{
+		return GetData(item + "_removed");
+		//return (Property.Get(item,"CSProjectile")).tofloat();
+	}
+	
+	function SetItemTime(item,time)
+	{
+		SetData(item + "_removed",time);
+		//Property.SetSimple(item,"CSProjectile",time);
+	}
+
 	function OnBeginScript()
 	{
 		if (!GetData("Started"))
 		{
 			print ("Deteriorator Added");
 			SetOneShotTimer("DeteriorateTimer",DETERIORATE_TIMER);
-			//print ("simTime: " + ShockGame.SimTime());
 			SetData("Started",1);
 		}
 		else
 			DeteriorateItems();
 	}
 
+	function GetCurrentTimeSeconds()
+	{
+		return ShockGame.SimTime() * 0.001;
+	}
+
 	function OnObjectAdded()
 	{
 		local item = message().data;
-		//print(ShockGame.GetArchetypeName(item) + " was added to player");
+		
+		//ShockGame.AddText(item + " was added","Player");
 		
 		RemoveLinks(item);
 	}
@@ -28,11 +45,12 @@ class Deteriorator extends SqRootScript
 	function OnObjectRemoved()
 	{
 		local item = message().data;
-		//print(ShockGame.GetArchetypeName(item) + " was removed from player");
+		
+		//ShockGame.AddText(item + " was removed","Player");
 		
 		if (!Link.AnyExist(linkkind("Target"),self,item))
 		{
-			SetData(item + "_removed",ShockGame.SimTime());
+			SetItemTime(item,GetCurrentTimeSeconds());
 			Link.Create(linkkind("Target"),self,item);
 		}
 	}
@@ -49,8 +67,6 @@ class Deteriorator extends SqRootScript
 		{		
 			local lObj = sLink(link).dest;
 			
-			//print ("Deteriating " + lObj);
-			
 			local isGoodies = isArchetype(lObj,-49) || isArchetype(lObj,-90);
 						
 			if (isGoodies)
@@ -64,37 +80,36 @@ class Deteriorator extends SqRootScript
 	{
 		if (Link.AnyExist(linkkind("Contains"),"Player",item))
 		{
-			ShockGame.AddText("Removing inventory item " + item, "Player");
+			//ShockGame.AddText("Removing inventory item " + item, "Player");
 			RemoveLinks(item);
 			return;
 		}
 	
-		local removalTime = GetData(item + "_removed");
+		local timeDiff = GetCurrentTimeSeconds() - GetItemTime(item);
 		
-		local timeDiff = ShockGame.SimTime() - removalTime;
+		//ShockGame.AddText("Time diff for " + ShockGame.GetArchetypeName(item) + " (" + item + ") is " + (timeDiff),"Player");
 		
-		ShockGame.AddText("Time diff for " + ShockGame.GetArchetypeName(item) + " (" + item + ") is " + (timeDiff / 1000),"Player");
+		local numRemovals = floor(timeDiff / DETERIORATE_RATE);
 		
-		local numRemovals = (timeDiff / 1000) / DETERIORATE_RATE;
-		
-		//print ("numRemovals: " + numRemovals + " (timeDiff: " + timeDiff + ")" );
+		//ShockGame.AddText("numRemovals: " + numRemovals + " (timeDiff: " + timeDiff + ")","Player");
 			
 		if (numRemovals > 0)
 		{
 			ReduceStackSize(item,numRemovals);
 			
 			//Refresh removal timer
-			SetData(item + "_removed",ShockGame.SimTime());
+			SetItemTime(item,GetCurrentTimeSeconds());
 		}
 	}
 	
 	function OnTimer()
 	{
+		//ShockGame.AddText("tick","Player");
+	
 		DeteriorateItems();
 	
 		//Restart Counter
 		SetOneShotTimer("DeteriorateTimer",DETERIORATE_TIMER);
-		//ShockGame.AddText("simTime: " + ShockGame.SimTime(),"Player");
 	}
 	
 	function isArchetype(obj,type)
@@ -104,7 +119,6 @@ class Deteriorator extends SqRootScript
 	
 	function ReduceStackSize(item,amount)
 	{
-		//print("Reducing stack count for " + item + " by " + amount);
 		local stackcount = Property.Get(item,"StackCount");
 		if (stackcount <= amount)
 		{
@@ -130,10 +144,8 @@ class DeteriorateDroppedItems extends SqRootScript
 	{	
 		if (!GetData("Started"))
 		{
-			//print ("Added");
 			SetData("Started",1);
 			local deteriator = Object.Create("Deteriorator");
-			//print ("deteriator: " + deteriator);
 			SetData("DeteriatorObj",deteriator);
 		}
 	}
@@ -144,8 +156,6 @@ class DeteriorateDroppedItems extends SqRootScript
 	
 		if (!deteriator)
 			return;
-			
-		//print ("Deteriator!");
 	
 		local item = message().containee;
 	

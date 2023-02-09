@@ -1,12 +1,3 @@
-CreateArch "Marker" "Deteriorator"
-{
-	+ObjProp "Scripts"
-	{
-		"Script 0" "Deteriorator"
-		"Don't inherit" false
-	}
-}
-
 CreateArch "Misc Metaprops" "Item Deterioration"
 {
 	+ObjProp "Scripts"

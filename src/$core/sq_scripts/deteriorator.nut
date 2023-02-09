@@ -1,155 +1,3 @@
-//Script to manage deterioration
-class Deteriorator extends SqRootScript
-{
-	static DETERIORATE_TIMER = 10; //How often the script updates to check items. You shouldn't touch this.
-	static DETERIORATE_RATE = 600; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
-	static MAX_REMOVE_EXTRA = 10; //If the item contains more than this many stacks, roll for Max Removals
-	static MAX_REMOVALS = 4; //How many items can be taken from the stack at once
-	static DISABLE_ELEVATOR = true;
-
-	function GetItemTime(item)
-	{
-		return GetData(item + "_removed");
-		//return (Property.Get(item,"CSProjectile")).tofloat();
-	}
-	
-	function SetItemTime(item,time)
-	{
-		SetData(item + "_removed",time);
-		//Property.SetSimple(item,"CSProjectile",time);
-	}
-	
-	function GetItemStack(item)
-	{
-		return Property.Get(item,"StackCount");
-	}
-
-	function OnBeginScript()
-	{
-		if (!GetData("Started"))
-		{
-			print ("Deteriorator Added");
-			SetOneShotTimer("DeteriorateTimer",DETERIORATE_TIMER);
-			SetData("Started",1);
-		}
-		else
-			DeteriorateItems();
-	}
-
-	function GetCurrentTimeSeconds()
-	{
-		return ShockGame.SimTime() * 0.001;
-	}
-
-	function OnObjectAdded()
-	{
-		local item = message().data;
-
-		//ShockGame.AddText(item + " was added","Player");
-		
-		RemoveLinks(item);
-	}
-	
-	function OnObjectRemoved()
-	{
-		local item = message().data;
-		
-		local isGoodies = isArchetype(item,-49) || isArchetype(item,-90);
-		if (!isGoodies)
-			return;
-			
-		if (DISABLE_ELEVATOR)
-			Property.SetSimple(item,"ElevAble",false);
-		
-		//ShockGame.AddText(item + " was removed","Player");
-		
-		if (!Link.AnyExist(linkkind("Target"),self,item))
-		{
-			SetItemTime(item,GetCurrentTimeSeconds());
-			Link.Create(linkkind("Target"),self,item);
-		}
-	}
-	
-	function DeteriorateItems()
-	{
-		//Don't degrade anything while we have a container open,
-		//so that we don't lose any items inside the container
-		local currentContainer = ShockGame.OverlayGetObj();
-		if (currentContainer != 0)
-			return;
-	
-		foreach (link in Link.GetAll(linkkind("Target"),self))
-		{		
-			local lObj = sLink(link).dest;
-			Deteriorate(lObj);
-		}
-	}
-	
-	//Compares an items removal time with the current sim time
-	//If it's due to be deteriorated, it removes some items from it's stacks
-	function Deteriorate(item)
-	{
-		if (Link.AnyExist(linkkind("Contains"),"Player",item))
-		{
-			//ShockGame.AddText("Removing inventory item " + item, "Player");
-			RemoveLinks(item);
-			return;
-		}
-	
-		local timeDiff = GetCurrentTimeSeconds() - GetItemTime(item);
-		
-		//ShockGame.AddText("Time diff for " + ShockGame.GetArchetypeName(item) + " (" + item + ") is " + (timeDiff),"Player");
-		
-		local numRemovals = floor(timeDiff / DETERIORATE_RATE);
-		
-		//ShockGame.AddText("numRemovals: " + numRemovals + " (timeDiff: " + timeDiff + ")","Player");
-			
-		if (numRemovals > 0)
-		{
-			if (GetItemStack(item) > MAX_REMOVE_EXTRA)
-				numRemovals = Data.RandInt(numRemovals,numRemovals + MAX_REMOVALS - 1);
-			
-			ReduceStackSize(item,numRemovals);
-			
-			//Refresh removal timer
-			SetItemTime(item,GetCurrentTimeSeconds());
-		}
-	}
-	
-	function OnTimer()
-	{
-		//ShockGame.AddText("tick","Player");
-	
-		DeteriorateItems();
-	
-		//Restart Counter
-		SetOneShotTimer("DeteriorateTimer",DETERIORATE_TIMER);
-	}
-	
-	function isArchetype(obj,type)
-	{	
-		return obj == type || Object.Archetype(obj) == type || Object.Archetype(obj) == Object.Archetype(type) || Object.InheritsFrom(obj,type);
-	}
-	
-	function ReduceStackSize(item,amount)
-	{
-		local stackcount = GetItemStack(item);
-		if (stackcount <= amount)
-		{
-			Object.Destroy(item);
-			RemoveLinks(item);
-		}
-		else
-			Property.SetSimple(item,"StackCount",stackcount - amount);
-	}
-	
-	function RemoveLinks(item)
-	{
-		foreach (link in Link.GetAll(linkkind("Target"),self,item))
-			Link.Destroy(link);
-	}
-}
-
 //Player script to detect dropped items
 class DeteriorateDroppedItems extends SqRootScript
 {
@@ -175,11 +23,175 @@ class DeteriorateDroppedItems extends SqRootScript
 	
 		if (message().event == eContainsEvent.kContainRemove)
 		{
-			PostMessage(deteriator,"ObjectRemoved",item);
+			if (!HasScript(item))
+				DynamicScriptAdd(item);
+			PostMessage(item,"RemovedFromInv");
+			//PostMessage(deteriator,"ObjectRemoved",item);
 		}
 		else
 		{
-			PostMessage(deteriator,"ObjectAdded",item);
+			PostMessage(item,"AddedToInv");
+			//PostMessage(deteriator,"ObjectAdded",item);
+		}
+	}
+	
+	//This is both the most amazing AND most disgusting thing I have ever made NewDark do
+	//I'm really sorry...
+	function DynamicScriptAdd(item)
+	{
+		local script1 = Property.Get(item,"Scripts","Script 0");
+		local script2 = Property.Get(item,"Scripts","Script 1");
+		local script3 = Property.Get(item,"Scripts","Script 2");
+		local script4 = Property.Get(item,"Scripts","Script 3");
+		
+		if (script1 == "")
+			Property.Set(item,"Scripts","Script 0","DeteriorateItem");
+		else if (script2 == "")
+			Property.Set(item,"Scripts","Script 1","DeteriorateItem");
+		else if (script3 == "")
+			Property.Set(item,"Scripts","Script 2","DeteriorateItem");
+		else if (script4 == "")
+			Property.Set(item,"Scripts","Script 3","DeteriorateItem");
+		else
+			print ("Deteriation Error: Object " + item + " (" + ShockGame.GetArchetypeName(item) + ") has no available script slots!");
+	}
+	
+	function HasScript(item)
+	{
+		local script1 = Property.Get(item,"Scripts","Script 0");
+		local script2 = Property.Get(item,"Scripts","Script 1");
+		local script3 = Property.Get(item,"Scripts","Script 2");
+		local script4 = Property.Get(item,"Scripts","Script 3");
+		
+		return script1 == "DeteriorateItem" || script2 == "DeteriorateItem" || script3 == "DeteriorateItem" || script4 == "DeteriorateItem";
+	}
+}
+
+class DeteriorateItem extends SqRootScript
+{
+	static DETERIORATE_TIMER = 1; //How often the script updates to check itself. You shouldn't touch this.
+	static DETERIORATE_RATE = 20; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
+	static MAX_REMOVE_EXTRA = 12; //If the item contains more than this many stacks, roll for Max Removals
+	static MAX_REMOVALS = 4; //How many items can be taken from the stack at once
+
+	function GetCurrentTimeSeconds()
+	{
+		return ShockGame.SimTime() * 0.001;
+	}
+
+	function GetItemTime()
+	{
+		//return GetData("_removed");
+		return Property.Get(self,"DoorOpenSound").tofloat();
+	}
+	
+	function SetItemTime(time)
+	{
+		//SetData("_removed",time);
+		Property.SetSimple(self,"DoorOpenSound",time);
+	}
+	
+	function GetItemStack()
+	{
+		return Property.Get(self,"StackCount");
+	}
+
+	function StartTimer(time = 0)
+	{
+		if (time <= 0)
+			time = DETERIORATE_TIMER;
+		
+		StopTimer();
+		local timer = SetOneShotTimer("DeteriorateTimer",time);
+		SetData("_timer",timer);
+		//ShockGame.AddText("Starting Timer For " + self,"Player");
+	}
+	
+	function StopTimer()
+	{
+		local timer = GetData("_timer");
+		if (timer)
+		{
+			KillTimer(timer);
+			//ShockGame.AddText("Killing Timer For " + self,"Player");
+		}
+		
+	}
+
+	function OnBeginScript()
+	{
+		//Deteriorate();
+		if (!InPlayerInventory())
+		{
+			StartTimer(0.05);
+			//ShockGame.AddText("Timer For " + self + " is " + GetItemTime(),"Player");
+		}
+	}
+
+	function OnRemovedFromInv()
+	{
+		SetItemTime(GetCurrentTimeSeconds());
+		StartTimer();
+	}
+	
+	function OnAddedToInv()
+	{
+		StopTimer();
+	}
+	
+	function OnTimer()
+	{	
+		Deteriorate();
+	}
+	
+	function InPlayerInventory()
+	{
+		return Link.AnyExist(linkkind("Contains"),"Player",self);
+	}
+	
+	function Deteriorate()
+	{
+		if (InPlayerInventory())
+		{
+			//ShockGame.AddText("Ignoring inventory item " + self, "Player");
+			return;
+		}
+			
+		local timeDiff = GetCurrentTimeSeconds() - GetItemTime();
+					
+		local numRemovals = floor(timeDiff / DETERIORATE_RATE);
+		
+		//ShockGame.AddText("Deteriorating " + self + " (" + timeDiff + ")","Player");
+
+		local exists = true;
+
+		if (numRemovals > 0 && timeDiff > 0)
+		{
+			if (GetItemStack() > MAX_REMOVE_EXTRA)
+				numRemovals = Data.RandInt(numRemovals,numRemovals + MAX_REMOVALS - 1);
+			
+			exists = ReduceStackSize(numRemovals);
+			
+			//Refresh removal timer
+			SetItemTime(GetCurrentTimeSeconds());
+		}
+		
+		if (exists)
+			StartTimer();
+	}
+	
+	function ReduceStackSize(amount)
+	{
+		local stackcount = GetItemStack();
+		if (stackcount <= amount)
+		{
+			Object.Destroy(self);
+			return false;
+		}
+		else
+		{
+			Property.SetSimple(self,"StackCount",stackcount - amount);
+			return true;
 		}
 	}
 }

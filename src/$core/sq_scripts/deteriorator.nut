@@ -1,8 +1,11 @@
 //Script to manage deterioration
 class Deteriorator extends SqRootScript
 {
-	static DETERIORATE_TIMER = 10; //How often to update deterioration, NOT the rate, just how often the script updates item status
+	static DETERIORATE_TIMER = 10; //How often the script updates to check items. You shouldn't touch this.
 	static DETERIORATE_RATE = 600; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
+	static MAX_REMOVE_EXTRA = 10; //If the item contains more than this many stacks, roll for Max Removals
+	static MAX_REMOVALS = 4; //How many items can be taken from the stack at once
+	static DISABLE_ELEVATOR = true;
 
 	function GetItemTime(item)
 	{
@@ -14,6 +17,11 @@ class Deteriorator extends SqRootScript
 	{
 		SetData(item + "_removed",time);
 		//Property.SetSimple(item,"CSProjectile",time);
+	}
+	
+	function GetItemStack(item)
+	{
+		return Property.Get(item,"StackCount");
 	}
 
 	function OnBeginScript()
@@ -36,7 +44,7 @@ class Deteriorator extends SqRootScript
 	function OnObjectAdded()
 	{
 		local item = message().data;
-		
+
 		//ShockGame.AddText(item + " was added","Player");
 		
 		RemoveLinks(item);
@@ -45,6 +53,13 @@ class Deteriorator extends SqRootScript
 	function OnObjectRemoved()
 	{
 		local item = message().data;
+		
+		local isGoodies = isArchetype(item,-49) || isArchetype(item,-90);
+		if (!isGoodies)
+			return;
+			
+		if (DISABLE_ELEVATOR)
+			Property.SetSimple(item,"ElevAble",false);
 		
 		//ShockGame.AddText(item + " was removed","Player");
 		
@@ -66,11 +81,7 @@ class Deteriorator extends SqRootScript
 		foreach (link in Link.GetAll(linkkind("Target"),self))
 		{		
 			local lObj = sLink(link).dest;
-			
-			local isGoodies = isArchetype(lObj,-49) || isArchetype(lObj,-90);
-						
-			if (isGoodies)
-				Deteriorate(lObj);
+			Deteriorate(lObj);
 		}
 	}
 	
@@ -95,6 +106,9 @@ class Deteriorator extends SqRootScript
 			
 		if (numRemovals > 0)
 		{
+			if (GetItemStack(item) > MAX_REMOVE_EXTRA)
+				numRemovals = Data.RandInt(numRemovals,numRemovals + MAX_REMOVALS - 1);
+			
 			ReduceStackSize(item,numRemovals);
 			
 			//Refresh removal timer
@@ -119,7 +133,7 @@ class Deteriorator extends SqRootScript
 	
 	function ReduceStackSize(item,amount)
 	{
-		local stackcount = Property.Get(item,"StackCount");
+		local stackcount = GetItemStack(item);
 		if (stackcount <= amount)
 		{
 			Object.Destroy(item);

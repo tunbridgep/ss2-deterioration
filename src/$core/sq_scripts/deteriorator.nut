@@ -69,9 +69,9 @@ class DeteriorateDroppedItems extends SqRootScript
 
 class DeteriorateItem extends SqRootScript
 {
-	static DETERIORATE_TIMER = 1; //How often the script updates to check itself. You shouldn't touch this.
-	static DETERIORATE_RATE = 20; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
-	static MAX_REMOVE_EXTRA = 12; //If the item contains more than this many stacks, roll for Max Removals
+	static DETERIORATE_TIMER = 10; //How often the script updates to check itself. You shouldn't touch this.
+	static DETERIORATE_RATE = 600; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
+	static MAX_REMOVE_EXTRA = 12; //If the item contains more than this many stacks, roll for Max Removals. Otherwise, remove 1 only
 	static MAX_REMOVALS = 4; //How many items can be taken from the stack at once
 
 	function GetCurrentTimeSeconds()

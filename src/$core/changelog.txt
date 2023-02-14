@@ -1,0 +1,7 @@
+Version 1.1:
+
+- Items will no longer disappear when the player is nearby.
+
+Version 1.0:
+
+- Initial Release

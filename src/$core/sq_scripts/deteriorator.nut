@@ -1,24 +1,8 @@
 //Player script to detect dropped items
 class DeteriorateDroppedItems extends SqRootScript
 {
-	//Run Once
-	function OnBeginScript()
-	{	
-		if (!GetData("Started"))
-		{
-			SetData("Started",1);
-			local deteriator = Object.Create("Deteriorator");
-			SetData("DeteriatorObj",deteriator);
-		}
-	}
-
 	function OnContainer()
 	{
-		local deteriator = GetData("DeteriatorObj");
-	
-		if (!deteriator)
-			return;
-	
 		local item = message().containee;
 	
 		if (message().event == eContainsEvent.kContainRemove)
@@ -69,10 +53,13 @@ class DeteriorateDroppedItems extends SqRootScript
 
 class DeteriorateItem extends SqRootScript
 {
+	skipDistanceCheck = null;
+
 	static DETERIORATE_TIMER = 10; //How often the script updates to check itself. You shouldn't touch this.
 	static DETERIORATE_RATE = 600; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
 	static MAX_REMOVE_EXTRA = 12; //If the item contains more than this many stacks, roll for Max Removals. Otherwise, remove 1 only
 	static MAX_REMOVALS = 4; //How many items can be taken from the stack at once
+	static MAX_PLAYER_DIST = 70; //How far away the player must be from an item before it deteriorates
 
 	function GetCurrentTimeSeconds()
 	{
@@ -120,6 +107,7 @@ class DeteriorateItem extends SqRootScript
 
 	function OnBeginScript()
 	{
+		skipDistanceCheck = true; //We don't care about distance when moving between levels
 		//Deteriorate();
 		if (!InPlayerInventory())
 		{
@@ -130,6 +118,7 @@ class DeteriorateItem extends SqRootScript
 
 	function OnRemovedFromInv()
 	{
+		skipDistanceCheck = false;
 		SetItemTime(GetCurrentTimeSeconds());
 		StartTimer();
 	}
@@ -149,6 +138,14 @@ class DeteriorateItem extends SqRootScript
 		return Link.AnyExist(linkkind("Contains"),"Player",self);
 	}
 	
+	function GetPlayerDistance()
+	{
+		local playerPos = Object.Position("Player");
+		local pos = Object.Position(self);
+		local vecdiff = playerPos - pos;
+		return vecdiff.Length();
+	}
+	
 	function Deteriorate()
 	{
 		if (InPlayerInventory())
@@ -164,8 +161,13 @@ class DeteriorateItem extends SqRootScript
 		//ShockGame.AddText("Deteriorating " + self + " (" + timeDiff + ")","Player");
 
 		local exists = true;
+		
+		local playerDistance = GetPlayerDistance();
+		
+		//print ("playerDistance: " + playerDistance);
 
-		if (numRemovals > 0 && timeDiff > 0)
+		if (numRemovals > 0 && timeDiff > 0 && (playerDistance >= MAX_PLAYER_DIST || skipDistanceCheck))
+		//if (numRemovals > 0 && timeDiff > 0 && playerDistance >= MAX_PLAYER_DIST)
 		{
 			if (GetItemStack() > MAX_REMOVE_EXTRA)
 				numRemovals = Data.RandInt(numRemovals,numRemovals + MAX_REMOVALS - 1);
@@ -176,9 +178,12 @@ class DeteriorateItem extends SqRootScript
 			SetItemTime(GetCurrentTimeSeconds());
 		}
 		
+		skipDistanceCheck = false;
+		
 		if (exists)
 			StartTimer();
 	}
+	
 	
 	function ReduceStackSize(amount)
 	{

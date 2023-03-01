@@ -1,3 +1,10 @@
+Version 1.2:
+
+- Plot items, weapons, armour and organs will no longer deteriorate.
+- Fixed issue where items placed in containers (using mods like RSD) wouldn't deteriorate.
+- Changed deterioration rate from 10 minutes to 5 minutes, as 10 seemed too long.
+- Changed stack degrade formula.
+
 Version 1.1:
 
 - Items will no longer disappear when the player is nearby.

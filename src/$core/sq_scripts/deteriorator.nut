@@ -4,6 +4,9 @@ class DeteriorateDroppedItems extends SqRootScript
 	function OnContainer()
 	{
 		local item = message().containee;
+		
+		if (!IsValidItem(item))
+			return;
 	
 		if (message().event == eContainsEvent.kContainRemove)
 		{
@@ -17,6 +20,38 @@ class DeteriorateDroppedItems extends SqRootScript
 			PostMessage(item,"AddedToInv");
 			//PostMessage(deteriator,"ObjectAdded",item);
 		}
+	}
+	
+	//Don't deteriorate weapons
+	function IsValidItem(item)
+	{
+		//If it's not Goodies or Items, it's not valid
+		if (!isArchetype(item,-49) && !isArchetype(item,-90))
+			return false;
+			
+		//If it is Goodies, some items are still not valid
+	
+		if (isArchetype(item,-78) 	//Armour
+		|| isArchetype(item,-218) 	//Researchable
+		//|| isArchetype(item,-128) 	//Chemicals
+		|| isArchetype(item,-1341) 	//Toxin-A
+		|| isArchetype(item,-145) 	//Sb
+		|| isArchetype(item,-139) 	//V
+		|| isArchetype(item,-76) 	//Audio Logs
+		|| isArchetype(item,-85) 	//Nanites
+		|| isArchetype(item,-938) 	//Cyber Modules
+		|| isArchetype(item,-500)) 	//PDA Soft
+		{
+			return false;
+		}
+		
+		
+		return true;
+	}
+	
+	static function isArchetype(obj,type)
+	{	
+		return obj == type || Object.Archetype(obj) == type || Object.Archetype(obj) == Object.Archetype(type) || Object.InheritsFrom(obj,type);
 	}
 	
 	//This is both the most amazing AND most disgusting thing I have ever made NewDark do
@@ -56,10 +91,9 @@ class DeteriorateItem extends SqRootScript
 	skipDistanceCheck = null;
 
 	static DETERIORATE_TIMER = 10; //How often the script updates to check itself. You shouldn't touch this.
-	static DETERIORATE_RATE = 600; //At what rate do items degrade (in seconds). After this many seconds, will lose 1 from stack.
-	static MAX_REMOVE_EXTRA = 12; //If the item contains more than this many stacks, roll for Max Removals. Otherwise, remove 1 only
-	static MAX_REMOVALS = 4; //How many items can be taken from the stack at once
-	static MAX_PLAYER_DIST = 70; //How far away the player must be from an item before it deteriorates
+	static DETERIORATE_RATE = 300; //At what rate do items degrade (in seconds). After this many seconds, will lose items from stack.
+	static STACK_LOSS = 6; 			//How many items will be lost from the stack each removal
+	static MAX_PLAYER_DIST = 60; //How far away the player must be from an item before it deteriorates
 
 	function GetCurrentTimeSeconds()
 	{
@@ -125,7 +159,8 @@ class DeteriorateItem extends SqRootScript
 	
 	function OnAddedToInv()
 	{
-		StopTimer();
+		if (InPlayerInventory())
+			StopTimer();
 	}
 	
 	function OnTimer()
@@ -157,6 +192,7 @@ class DeteriorateItem extends SqRootScript
 		local timeDiff = GetCurrentTimeSeconds() - GetItemTime();
 					
 		local numRemovals = floor(timeDiff / DETERIORATE_RATE);
+		numRemovals *= STACK_LOSS; // + Data.RandInt(0,1);
 		
 		//ShockGame.AddText("Deteriorating " + self + " (" + timeDiff + ")","Player");
 
@@ -169,9 +205,7 @@ class DeteriorateItem extends SqRootScript
 		if (numRemovals > 0 && timeDiff > 0 && (playerDistance >= MAX_PLAYER_DIST || skipDistanceCheck))
 		//if (numRemovals > 0 && timeDiff > 0 && playerDistance >= MAX_PLAYER_DIST)
 		{
-			if (GetItemStack() > MAX_REMOVE_EXTRA)
-				numRemovals = Data.RandInt(numRemovals,numRemovals + MAX_REMOVALS - 1);
-			
+			//print("Deteriorator: reducing stacks for " + self + " by " + numRemovals);
 			exists = ReduceStackSize(numRemovals);
 			
 			//Refresh removal timer
